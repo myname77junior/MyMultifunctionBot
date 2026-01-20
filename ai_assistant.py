@@ -1,6 +1,10 @@
+import os
+from dotenv import load_dotenv
 from gigachat import GigaChat
 
-GIGACHAT_KEY = "MDE5YmM4YWQtYmNhMy03MjY5LTliYTMtNDgyZWNkZTk0MjMyOjg3NTQ5YTA0LThlNjQtNDMyYS04NWE1LTFjMTliYmExNzhhYQ=="
+load_dotenv()
+
+GIGACHAT_KEY = os.getenv("GIGACHAT_KEY")
 
 def get_chat_response(chat_history):
     """

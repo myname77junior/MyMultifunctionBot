@@ -4,3 +4,4 @@ __pacache__/
 logs.csv
 bot_database.db
 chart.png
+.env

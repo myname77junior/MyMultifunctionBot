@@ -12,12 +12,16 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from ai_assistant import get_chat_response
+from dotenv import load_dotenv
+
+# Загружаем секреты из файла .env прямо сейчас
+load_dotenv()
 
 # Включаем логирование, чтобы видеть сообщения в консоли
 logging.basicConfig(level=logging.INFO)
 
 # ---NASTROYKA--
-bot = Bot(token="8345459205:AAFitLeMVFJIetASo0Xj_KZ7_wgiqdSCpNY")
+bot = Bot(token=os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
 
 # Sozdaem klaviaturu
@@ -260,7 +264,7 @@ def get_daily_currency():
 
 def get_daily_weather():
     city = "Ульяновск"
-    api_key = "30cc035c854726c52997b2703d50d222"
+    api_key = os.getenv("WEATHER_API_KEY")
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
     try:
         response = requests.get(url)
