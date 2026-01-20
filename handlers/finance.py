@@ -24,6 +24,12 @@ def log_message(user_id, username, text):
         writer = csv.writer(file)
         writer.writerow(data)
 
+# Ловим кнопку "Курсы валют"
+@router.callback_query(F.data == "rates_btn")
+async def cb_rates(callback: types.CallbackQuery):
+	await callback.answer()
+	await callback.message.answer("Чтобы узнать курс, просто напиши мне сумму числом (например: 1000).")
+
 # --- ГЛАВНЫЙ ОБРАБОТЧИК (Валюты + ИИ) ---
 # Мы ловим ВСЕ текстовые сообщения, которые не поймали предыдущие роутеры
 @router.message(F.text)
