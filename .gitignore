@@ -1,0 +1,6 @@
+venv/
+__pacache__/
+*.pyc
+logs.csv
+bot_database.db
+chart.png

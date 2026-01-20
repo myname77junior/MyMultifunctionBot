@@ -1,0 +1,6 @@
+aiogram
+requests
+matplotlib
+beautifulsoup4
+gigachat
+aiohttp
