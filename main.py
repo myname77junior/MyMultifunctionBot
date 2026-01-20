@@ -1,18 +1,19 @@
 import asyncio
 import logging
 import requests
-import matplotlib.pyplot as plt
 import os
-import csv
 import datetime
 import database
 import parser
-from aiogram.types import FSInputFile
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from ai_assistant import get_chat_response
 from dotenv import load_dotenv
+from handlers import common, finance
+
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(dotenv_path):
+	load_dotenv(dotenv_path)
 
 # Загружаем секреты из файла .env прямо сейчас
 load_dotenv()
@@ -23,6 +24,11 @@ logging.basicConfig(level=logging.INFO)
 # ---NASTROYKA--
 bot = Bot(token=os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
+
+# !!! ПОДКЛЮЧАЕМ РОУТЕР (Это самое важное) !!!
+# Мы говорим диспетчеру: "Если придет сообщение, проверь его в common.router"
+dp.include_router(common.router) # 1. Сначала кнопки
+dp.include_router(finance.router) #2. Потом деньги и ИИ
 
 # Sozdaem klaviaturu
 
@@ -44,28 +50,6 @@ keyboard = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 # Внутри ящика лежит список сообщений.
 # Структура: { 12345678: [список_сообщений], 98765432: [список_сообщений] }
 users_history = {}
-
-
-
-
-# --- ФУНКЦИЯ ДЛЯ ЗАПИСИ ДАННЫХ (LOGGING) ---
-def log_message(user_id, username, text):
-    # 1. Получаем текущее время
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # 2. Собираем данные в список
-    # Если username нет (скрыт), напишем "Anonim"
-    if not username:
-        username = "Anonim"
-
-    data = [now, user_id, username, text]
-
-    # 3. Открываем файл logs.csv в режиме "дозаписи" (append - 'a')
-    # newline='' нужен, чтобы не было пустых строк между записями
-    # encoding='utf-8' нужен, чтобы русские буквы не превратились в кракозябры
-    with open("logs.csv", "a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(data)
 
 # ---OBRABOTCHIK---
 
@@ -108,19 +92,6 @@ async def cmd_list(message: types.Message):
 
     await message.answer(answer_text, parse_mode="HTML")
 
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    # --- ЗАПИСЬ В ЖУРНАЛ ---
-    log_message(message.from_user.id,message.from_user.username, "/start")
-    # -----------------------
-    name = message.from_user.username
-    if not name:
-        name = message.from_user.first_name
-
-    database.add_user_to_db(message.from_user.id, name)
-
-
-    await message.answer("Привет! Выбери действие ниже или введи сумму в рублях, и я покажу графики! 📊:", reply_markup=keyboard)
 
 # --- СЕКРЕТНАЯ КОМАНДА ДЛЯ АДМИНА ---
 @dp.message(Command("logs"))
@@ -140,113 +111,6 @@ async def cmd_stats(message: types.Message):
     count = database.get_users_count()
     text = f"📊 <b>Статистика бота:</b>\n\n👥 В базе:{count} человек"
     await message.answer(text, parse_mode="HTML")
-
-
-# Если нажали "Поздороваться"
-@dp.message(F.text == "👋 Поздороваться")
-async def cmd_hello(message: types.Message):
-    await message.answer("Привет-привет! Рад тебя видеть!")
-
-# Если нажали "Кинуть кубик" (Телеграм умеет кидать красивые 3D кубики)
-@dp.message(F.text == "🎲 Кинуть кубик")
-async def cmd_dice(message: types.Message):
-    await message.answer_dice(emoji="🎲")
-
-# Если нажали "О боте"
-@dp.message(F.text == "ℹ️ О боте")
-async def cmd_info(message: types.Message):
-    await message.answer("Я тестовый бот, написанный на Python! 🐍")
-
-
-# --- ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ ---
-@dp.message()
-async def convert_currency(message: types.Message):
-    # --- ЗАПИСЬ В ЖУРНАЛ ---
-    log_message(message.from_user.id, message.from_user.username, message.text)
-    # -----------------------
-
-    # 1. Чистим текст
-    user_id = message.from_user.id
-    text = message.text
-    clean_text = text.replace(" ", "")
-
-
-
-    # 2. Проверка: А это вообще число?
-    # .isdigit() спрашивает: "Состоит ли этот текст только из цифр?"
-
-    if clean_text.isdigit():
-        database.update_user_counter(message.from_user.id)
-        rubles = int(clean_text)
-
-        await message.answer("⏳ Считаю курс валют...")
-
-        url = "https://www.cbr-xml-daily.ru/daily_json.js"
-        try:
-
-            response = requests.get(url)
-            data = response.json()
-
-            usd_rate = data['Valute']['USD']['Value']
-            eur_rate = data['Valute']['EUR']['Value']
-            cny_rate = data['Valute']["CNY"]['Value']
-
-            usd_res = round(rubles / usd_rate, 2)
-            eur_res = round(rubles / eur_rate, 2)
-            cny_res = round(rubles / cny_rate, 2)
-
-            # 3. --- РИСУЕМ ГРАФИК (Data Science часть) ---
-
-            # Данные для осей
-            currencies = ['USD', 'EUR', 'CNY']
-            values = [usd_res, eur_res, cny_res]
-
-            # Создаем картинку
-            plt.figure(figsize=(6, 4))
-            plt.bar(currencies, values, color=['green', 'blue', 'red'])
-            plt.title(f'На {rubles} руб. можно купить:')
-            plt.grid(True, alpha=0.3)
-
-            # Сохраняем картинку в файл
-            file_name = "chart.png"
-            plt.savefig(file_name)
-            plt.close()
-
-            # 4. Отправляем фото
-            photo = FSInputFile(file_name)
-            await message.answer_photo(photo, caption=f"Вот твой расчет на сегодня! 📉")
-
-            # Удаляем файл после отправки (убираем за собой)
-            os.remove(file_name)
-
-        except Exception as e:
-            await message.answer(f"Произошла ошибка курсов валют {e}")
-
-    # 3. ИНАЧЕ: Это текст (Общаемся через GigaChat)
-    else:
-        # Показываем статус "печатает..."
-        await bot.send_chat_action(chat_id=message.chat.id, action="typing")
-
-        # --- ШАГ А: Достаем историю этого пользователя ---
-        # Если пользователя нет в словаре, создаем для него пустой список []
-        if user_id not in users_history:
-            users_history[user_id] = []
-
-        # --- ШАГ Б: Добавляем сообщение пользователя в историю ---
-        # Формат требует GigaChat: {"role": "user", "content": "Текст"}
-        users_history[user_id].append({"role": "user", "content": text})
-
-        # --- ШАГ В: Отправляем ВЕСЬ список сообщений в нейросеть ---
-        # Мы берем историю users_history[user_id] и передаем в функцию
-        ai_answer = get_chat_response(users_history[user_id])
-
-        # --- ШАГ Г: Запоминаем ответ бота ---
-        # Чтобы в следующий раз бот знал, что он сам ответил
-        users_history[user_id].append({"role": "assistant", "content": ai_answer})
-
-        # Отправляем ответ
-        await message.answer(ai_answer)
-
 
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАССЫЛКИ ---
