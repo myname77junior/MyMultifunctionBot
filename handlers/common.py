@@ -1,8 +1,15 @@
 from aiogram import Router, types, F
 from aiogram.filters.command import Command
+from aiogram.fsm.context import FSMContext #нужно для запуска анкеты
 from aiogram.types import ReplyKeyboardRemove
+from states import Form
 # Импортируем нашу новую клавиатуру
-from keyboards.client_kb import main_menu
+from keyboards.client_kb import main_menu, back_kb
+import database
+import requests
+import os
+import datetime
+
 
 router = Router()
 
@@ -19,34 +26,155 @@ async def cmd_start(message: types.Message):
 		reply_markup=main_menu # <--- Прикрепляем клавиатуру
 	)
 
-# Используем "contains" - сработает, если в тексте есть это слово
-@router.message(F.text.contains("Поздороваться"))
-async def cmd_hello(message: types.Message):
-    await message.answer("Привет-привет! Рад тебя видеть!")
+#--- ЛОГИКА КНОПКИ "НАЗАД" (УЛУЧШЕННАЯ) ---
+@router.callback_query(F.data == "back_home")
+async def cb_back(callback: types.CallbackQuery, state: FSMContext):
+	# Сбрасываем любые состояния (ввод суммы, города и т.д.)
+	await state.clear()
 
-@router.message(F.text.contains("О боте"))
-async def cmd_info(message: types.Message):
-    await message.answer("Я тестовый бот, написанный на Python! 🐍")
+	try:
+	# Попытка 1: Просто отредактировать текст (сработает, если было текстовое сообщение)
+		await callback.message.edit_text(
+			"Ты в главном меню. Выбирай! 👇",
+			reply_markup=main_menu
+		)
+	except Exception:
+		# Попытка 2: Если возникла ошибка (например, это была картинка),
+		# мы удаляем старое сообщение и отправляем новое
+		await callback.message.delete()
+		await callback.message.answer(
+			"Ты в главном меню. Выбирай! 👇",
+			reply_markup=main_menu
+		)
 
-@router.message(F.text.contains("кубик"))
-async def cmd_dice(message: types.Message):
-    await message.answer_dice(emoji="🎲")
+# --- ЛОГИКА КНОПКИ "ПРОФИЛЬ" ---
+@router.callback_query(F.data == "profile_btn")
+async def cb_profile(callback: types.CallbackQuery, state: FSMContext):
+	user_id = callback.from_user.id
+
+	# 1. Проверяем базу
+	profile = database.get_profile(user_id)
+
+	# 2. Если профиля НЕТ -> Запускаем анкету
+	if not profile:
+		await callback.message.answer("Я тебя пока не знаю! Давай знакомиться.\nКак тебя зовут?")
+		await state.set_state(Form.name) # <-- Запускаем машину состояний
+		await callback.answer()
+		return
+
+	# 3. Если профиль ЕСТЬ -> Показываем его
+	name, age, bio = profile
+	text = (
+		f"📂 <b>Твой профиль:</b>\n\n"
+		f"👤 <b>Имя:</b> {name}\n"
+		f"🎂 <b>Возраст:</b> {age}\n"
+ 		f"📝 <b>О себе:</b> {bio}"
+	)
+	# Добавляем кнопку "Назад"
+	await callback.message.edit_text(text, reply_markup=back_kb, parse_mode="HTML")
 
 # --- ОБРАБОТКА ИНЛАЙН КНОПОК ---
 
-# Ловим нажатие на кнопку "О боте"
 
+# --- ЛОГИКА КНОПКИ "О БОТЕ" ---
 @router.callback_query(F.data == "about_btn")
 async def cb_about(callback: types.CallbackQuery):
 	# 1. Отвечаем всплывашкой (чтобы часики на кнопке пропали)
-	await callback.answer("Загружаю инфу...", show_alter=False)
+	await callback.message.edit_text(
+		"Я бот, написанный на Python + Aiogram 3. 🐍\n"
+		"Умею хранить данные, считать валюту и болтать.",
+		reply_markup=back_kb
+	)
 
-	# 2. Отправляем сообщение
-	await callback.message.answer("Я бот на Python! Могу считать валюту и болтать.")
+# ==========================================
+# НОВАЯ ЛОГИКА: ПОГОДА + ПРОГНОЗ
+# ==========================================
 
-# Ловим нажатие на кнопку "Кубик"
+@router.callback_query(F.data == "weather_btn")
+async def cb_weather(callback: types.CallbackQuery, state: FSMContext):
+	await callback.message.edit_text(
+		"Напиши название города (например: Москва):",
+		reply_markup=back_kb
+	)
+	await state.set_state(Form.city_request)
 
-@router.callback_query(F.data == "dice_btn")
-async def cb_dice(callback: types.CallbackQuery):
-	await callback.answer() # Просто убираем часики
-	await callback.message.answer_dice()
+@router.message(Form.city_request)
+async def process_weather_city(message: types.Message, state: FSMContext):
+	city = message.text
+	api_key = os.getenv("WEATHER_API_KEY") # Берем ключ из .env
+
+	# 1. URL для текущей погоды
+	url_now = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
+	# 2. URL для прогноза (forecast)
+	url_forecast = f"http://api.openweathermap.org/data/2.5/forecast?q={city}&appid={api_key}&units=metric&lang=ru"
+
+	await message.answer(f"🔎 Смотрю погоду в: {city}...")
+
+	try:
+		# --- ПОЛУЧАЕМ ТЕКУЩУЮ ПОГОДУ ---
+		resp_now = requests.get(url_now)
+
+		if resp_now.status_code != 200:
+			await message.answer("❌ Город не найден. Попробуй еще раз.", reply_markup=back_kb)
+			return # Не выходим из состояния, даем шанс исправить
+
+		data = resp_now.json()
+		temp = round(data['main']['temp'])
+		desc = data['weather'][0]['description']
+		wind = data['wind']['speed']
+
+		# --- ПОЛУЧАЕМ ПРОГНОЗ ---
+
+		resp_forecast = requests.get(url_forecast)
+
+		# --- ВАЖНАЯ ПРОВЕРКА ---
+		if resp_forecast.status_code != 200:
+			print(f"🔥 ОШИБКА ПРОГНОЗА: {resp_forecast.text}")
+			await message.answer(f"Погоду нашел, а прогноз не смог (Ошибка API).", reply_markup=back_kb)
+			return
+		# -----------------------
+
+		forecast_data = resp_forecast.json()
+
+		# OpenWeatherMap дает прогноз каждые 3 часа. Список 'list' содержит 40 записей (5 дней * 8 отрезков).
+		# Чтобы узнать погоду на завтра, берем 8-й элемент (через 24 часа), на послезавтра - 16-й и т.д.
+
+		forecast_list = forecast_data['list']
+
+		# Формируем текст прогноза
+		forecast_text = ""
+
+		# range(8, 33, 8) означает: берем индексы 8, 16, 24, 32...
+		# То есть берем погоду с шагом в 24 часа (примерно)
+		days_map = {0: "Завтра", 1: "Послезавтра", 2: "Через 3 дня"}
+
+		for i, idx in enumerate(range(7, 30, 8)): # Берем 3 точки в будущем
+			if idx < len(forecast_list):
+				item = forecast_list[idx]
+				f_temp = round(item['main']['temp'])
+				f_desc = item['weather'][0]['description']
+				# Получаем дату из текста "2024-01-21 15:00:00"
+				f_date = item['dt_txt'].split(" ")[0]
+
+				day_name = days_map.get(i, f_date)
+
+				forecast_text += f"📅 <b>{day_name}:</b> {f_temp}°C, {f_desc}\n"
+
+		# --- СОБИРАЕМ ВСЁ ВМЕСТЕ ---
+
+		final_msg = (
+			f"🌤 <b>Погода сейчас в {city}:</b>\n"
+			f"🌡 <b>{temp}°C</b>, {desc}\n"
+			f"💨 Ветер: {wind} м/с\n\n"
+			f"🔮 <b>Прогноз на будущее:</b>\n"
+			f"{forecast_text}"
+		)
+
+		await message.answer(final_msg, parse_mode="HTML", reply_markup=back_kb)
+		await state.clear()
+
+	except Exception as e:
+		# Выводим саму ошибку пользователю, чтобы понять причину
+		print(f"КРИТИЧЕСКАЯ ОШИБКА {e}")
+		await message.answer(f"Ошибка: {e}", reply_markup=back_kb)
+		await state.clear()
