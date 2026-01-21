@@ -96,3 +96,13 @@ def add_user_to_db(user_id, username):
     # 5. Сохраняем и уходим
     conn.commit()
     conn.close()
+
+# --- ЧТЕНИЕ АНКЕТЫ ---
+def get_profile(user_id):
+	conn = sqlite3.connect("bot_database.db")
+	cursor = conn.cursor()
+	# Ищем пользователя по ID
+	cursor.execute("SELECT name, age, bio FROM profiles WHERE user_id = ?", (user_id,))
+	profile = cursor.fetchone()
+	conn.close()
+	return profile

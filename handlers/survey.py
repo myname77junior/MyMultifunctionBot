@@ -55,3 +55,24 @@ async def process_bio(message: types.Message, state: FSMContext):
 
 	await message.answer(text, parse_mode="HTML")
 	await state.clear()
+
+@router.message(Command("myprofile"))
+async def cmd_my_profile(message: types.Message):
+	# 1. Спрашиваем у базы: "Есть что-нибудь про этого парня?"
+	profile = database.get_profile(message.from_user.id)
+
+	# 2. Если profile пустотой (None) — значит, анкеты нет
+	if not profile:
+		await message.answer("Я тебя пока не знаю! Напиши /profile, чтобы познакомиться.")
+		return
+
+	# 3. Если анкета есть — распаковываем данные
+	name, age, bio = profile
+
+	text = (
+		f"📂 <b>Твой профиль:</b>\n\n"
+		f"👤 <b>Имя:</b>{name}\n"
+		f"🎂 <b>Возраст:</b>{age}\n"
+		f"📝 <b>О себе:</b>{bio}"
+	)
+	await message.answer(text, parse_mode="HTML")
