@@ -1,6 +1,47 @@
 import sqlite3
 import datetime
 
+# --- ИНИЦИАЛИЗАЦИЯ (Создание таблиц) ---
+def create_tables():
+	conn = sqlite3.connect('bot_database.db')
+	cursor = conn.cursor()
+
+	# 1. Таблица пользователей (Для счетчика сообщений)
+	cursor.execute("""
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY,
+			username TEXT,
+			first_seen TEXT,
+			messages_count INTEGER DEFAULT 0
+		)
+	""")
+
+	# 2. Таблица анкет (НОВАЯ: Для имени, возраста и био)
+	cursor.execute('''
+		CREATE TABLE IF NOT EXISTS profiles (
+			user_id INTEGER PRIMARY KEY,
+			name TEXT,
+			age INTEGER,
+			bio TEXT
+		)
+	''')
+
+	conn.commit()
+	conn.close()
+
+# --- ФУНКЦИИ ДЛЯ АНКЕТЫ (НОВЫЕ) ---
+def save_profile(user_id, name, age, bio):
+	conn = sqlite3.connect("bot_database.db")
+	cursor = conn.cursor()
+	cursor.execute('''
+		INSERT OR REPLACE INTO profiles (user_id, name, age, bio)
+		VALUES (?, ?, ?, ?)
+	''', (user_id, name, age, bio))
+	conn.commit()
+	conn.close()
+
+
+
 def get_top_users():
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
@@ -42,14 +83,8 @@ def add_user_to_db(user_id, username):
     cursor = conn.cursor()
 
     # 2. Создаем таблицу (на всякий случай, вдруг файл удалили)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            username TEXT,
-            first_seen TEXT,
-            messages_count INTEGER DEFAULT 0
-            )
-    """)
+
+	# 2.1 UPD: Убрали создание таблицы от сюда, так как теперь она создаётся в create_tables
 
     # 3. Время регистрации
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

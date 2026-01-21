@@ -190,12 +190,15 @@ async def scheduler():
 
 # --- ЗАПУСК ---
 async def main():
-    # Запускаем нашего "Повелителя времени" в фоне
-    asyncio.create_task(scheduler())
+	# Создаем таблицы (если их нет)
+	database.create_tables()
+
+	# Запускаем нашего "Повелителя времени" в фоне
+	asyncio.create_task(scheduler())
 
 
-    # Запускаем самого бота
-    await dp.start_polling(bot)
+	# Запускаем самого бота
+	await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+	asyncio.run(main())

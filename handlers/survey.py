@@ -1,3 +1,4 @@
+import database
 from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -37,6 +38,13 @@ async def process_bio(message: types.Message, state: FSMContext):
 	await state.update_data(bio=message.text)
 
 	data = await state.get_data()
+
+	database.save_profile(
+		user_id=message.from_user.id,
+		name=data['name'],
+		age=data['age'],
+		bio=data['bio']
+	)
 
 	text = (
 		f"✅ <b>Анкета готова!</b>\n\n"
