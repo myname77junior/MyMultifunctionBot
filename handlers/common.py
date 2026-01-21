@@ -1,5 +1,6 @@
 from aiogram import Router, types, F
 from aiogram.filters.command import Command
+from aiogram.types import ReplyKeyboardRemove
 # Импортируем нашу новую клавиатуру
 from keyboards.client_kb import main_menu
 
@@ -9,10 +10,14 @@ router = Router()
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer(
-	"Привет! Я стал современнее. Жми кнопки под сообщением! 👇",
-	reply_markup=main_menu # <--- Прикрепляем клавиатуру
-    )
+	# 1. Сначала отправляем сообщение "удалялку", чтобы стереть кнопки внизу
+	await message.answer("Загружаю меню...", reply_markup=ReplyKeyboardRemove())
+
+	# 2. Потом отправляем красивое меню
+	await message.answer(
+		"Привет! Я стал современнее. Жми кнопки под сообщением! 👇",
+		reply_markup=main_menu # <--- Прикрепляем клавиатуру
+	)
 
 # Используем "contains" - сработает, если в тексте есть это слово
 @router.message(F.text.contains("Поздороваться"))

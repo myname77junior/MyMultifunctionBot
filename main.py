@@ -9,7 +9,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
-from handlers import common, finance
+from handlers import common, finance, survey
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
@@ -28,6 +28,7 @@ dp = Dispatcher()
 # !!! ПОДКЛЮЧАЕМ РОУТЕР (Это самое важное) !!!
 # Мы говорим диспетчеру: "Если придет сообщение, проверь его в common.router"
 dp.include_router(common.router) # 1. Сначала кнопки
+dp.include_router(survey.router) # - переехватываем, если это анкета 
 dp.include_router(finance.router) #2. Потом деньги и ИИ
 
 # Sozdaem klaviaturu
