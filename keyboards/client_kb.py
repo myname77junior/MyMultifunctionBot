@@ -8,14 +8,16 @@ btn1 = InlineKeyboardButton(text="👤 Мой профиль", callback_data="pr
 btn2 = InlineKeyboardButton(text="🤖 Чат с ИИ", callback_data="ai_btn")
 btn3 = InlineKeyboardButton(text="💵 Курсы валют", callback_data="rates_btn")
 btn4 = InlineKeyboardButton(text="🌤 Погода", callback_data="weather_btn")
-btn5 = InlineKeyboardButton(text="ℹ️ О боте", callback_data="about_btn")
+btn5 = InlineKeyboardButton(text="🧘 Цитата дня", callback_data="quote_btn")
+btn6 = InlineKeyboardButton(text="ℹ️ О боте", callback_data="about_btn")
 
 # Собираем клавиатуру (список списков = ряды кнопок)
 main_menu = InlineKeyboardMarkup(
 	inline_keyboard=[
 		[btn1, btn2], 	# Первый ряд (две кнопки)
 		[btn3, btn4],	# Второй ряд (две кнопки)
-		[btn5]		# Третий ряд (одна кнопка)
+		[btn5],
+		[btn6]		# Третий ряд (одна кнопка)
 	]
 )
 

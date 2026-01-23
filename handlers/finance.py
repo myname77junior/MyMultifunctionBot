@@ -16,21 +16,28 @@ from keyboards.client_kb import back_kb
 
 router = Router()
 
-# Переносим словарь истории сюда, так как он используется только здесь
-#users_history = {}
+# --- НОВАЯ ФУНКЦИЯ ДЛЯ РАССЫЛКИ (Импортируем её в main.py) ---
+# Она не мешает остальному коду работать
+def get_currency_rate():
+	try:
+		url = "https://www.cbr-xml-daily.ru/daily_json.js"
+		response = requests.get(url)
+		data = response.json()
 
-# Временная функция логирования (лучше потом вынести в utils.py, но пока пусть живет тут)
-#def log_message(user_id, username, text):
-#	now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#	if not username:
-#	username = "Anonim"
-#	data = [now, user_id, username, text]
-#	#Используем абсолютный путь, чтобы не потерять файл
-#	with open("logs.csv", "a", newline="", encoding="utf-8") as file:
-#		writer = csv.writer(file)
-#		writer.writerow(data)
+		usd = data['Valute']['USD']['Value']
+		eur = data['Valute']['EUR']['Value']
+		cny = data['Valute']['CNY']['Value']
 
-# Ловим кнопку "Курсы валют"
+		return (
+			f"💰 <b>Курсы ЦБ РФ:</b>\n"
+			f"🇺🇸 USD: {usd:.2f} ₽\n"
+			f"🇪🇺 EUR: {eur:.2f} ₽\n"
+			f"🇨🇳 CNY: {cny:.2f} ₽"
+		)
+	except Exception as e:
+		return f"⚠️ Курсы валют недоступны ({e})"
+	
+# -----------------------------------------------------------
 
 class FinanceState(StatesGroup):
 	waiting_for_amount = State()

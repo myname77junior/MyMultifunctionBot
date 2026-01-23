@@ -22,6 +22,7 @@ def create_tables():
 			user_id INTEGER PRIMARY KEY,
 			name TEXT,
 			age INTEGER,
+            city TEXT,
 			bio TEXT
 		)
 	''')
@@ -30,13 +31,13 @@ def create_tables():
 	conn.close()
 
 # --- ФУНКЦИИ ДЛЯ АНКЕТЫ (НОВЫЕ) ---
-def save_profile(user_id, name, age, bio):
+def add_profile(user_id, name, age, city, bio):
 	conn = sqlite3.connect("bot_database.db")
 	cursor = conn.cursor()
 	cursor.execute('''
-		INSERT OR REPLACE INTO profiles (user_id, name, age, bio)
-		VALUES (?, ?, ?, ?)
-	''', (user_id, name, age, bio))
+		INSERT OR REPLACE INTO profiles (user_id, name, age, city, bio)
+		VALUES (?, ?, ?, ?, ?)
+	''', (user_id, name, age, city, bio))
 	conn.commit()
 	conn.close()
 
@@ -102,7 +103,17 @@ def get_profile(user_id):
 	conn = sqlite3.connect("bot_database.db")
 	cursor = conn.cursor()
 	# Ищем пользователя по ID
-	cursor.execute("SELECT name, age, bio FROM profiles WHERE user_id = ?", (user_id,))
+	cursor.execute("SELECT name, age, city, bio FROM profiles WHERE user_id = ?", (user_id,))
 	profile = cursor.fetchone()
 	conn.close()
 	return profile
+
+def get_all_profiles_data():
+    """Возвращает список кортежей: (user_id, city)"""
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    # Берем ID и Город у тех, у кого город вообще заполнен
+    cursor.execute("SELECT user_id, city FROM profiles WHERE city IS NOT NULL")
+    users = cursor.fetchall()
+    conn.close()
+    return users

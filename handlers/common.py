@@ -1,10 +1,11 @@
 from aiogram import Router, types, F
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext #нужно для запуска анкеты
-from aiogram.types import ReplyKeyboardRemove
+from aiogram.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from states import Form
 # Импортируем нашу новую клавиатуру
 from keyboards.client_kb import main_menu, back_kb
+from ai_assistant import get_chat_response
 import database
 import requests
 import os
@@ -19,7 +20,6 @@ router = Router()
 async def cmd_start(message: types.Message):
 	# 1. Сначала отправляем сообщение "удалялку", чтобы стереть кнопки внизу
 	await message.answer("Загружаю меню...", reply_markup=ReplyKeyboardRemove())
-
 	# 2. Потом отправляем красивое меню
 	await message.answer(
 		"Привет! Я стал современнее. Жми кнопки под сообщением! 👇",
@@ -35,23 +35,17 @@ async def cb_back(callback: types.CallbackQuery, state: FSMContext):
 	try:
 	# Попытка 1: Просто отредактировать текст (сработает, если было текстовое сообщение)
 		await callback.message.edit_text(
-			"Ты в главном меню. Выбирай! 👇",
-			reply_markup=main_menu
-		)
+			"Ты в главном меню. Выбирай! 👇",reply_markup=main_menu)
 	except Exception:
 		# Попытка 2: Если возникла ошибка (например, это была картинка),
 		# мы удаляем старое сообщение и отправляем новое
 		await callback.message.delete()
-		await callback.message.answer(
-			"Ты в главном меню. Выбирай! 👇",
-			reply_markup=main_menu
-		)
+		await callback.message.answer("Ты в главном меню. Выбирай! 👇",reply_markup=main_menu)
 
 # --- ЛОГИКА КНОПКИ "ПРОФИЛЬ" ---
 @router.callback_query(F.data == "profile_btn")
 async def cb_profile(callback: types.CallbackQuery, state: FSMContext):
 	user_id = callback.from_user.id
-
 	# 1. Проверяем базу
 	profile = database.get_profile(user_id)
 
@@ -59,21 +53,50 @@ async def cb_profile(callback: types.CallbackQuery, state: FSMContext):
 	if not profile:
 		await callback.message.answer("Я тебя пока не знаю! Давай знакомиться.\nКак тебя зовут?")
 		await state.set_state(Form.name) # <-- Запускаем машину состояний
-		await callback.answer()
 		return
 
-	# 3. Если профиль ЕСТЬ -> Показываем его
-	name, age, bio = profile
+	# Распаковываем 4 значения (раньше было 3)
+	name, age, city, bio = profile
 	text = (
 		f"📂 <b>Твой профиль:</b>\n\n"
 		f"👤 <b>Имя:</b> {name}\n"
 		f"🎂 <b>Возраст:</b> {age}\n"
+		f"🏙 <b>Город:</b> {city}\n"
  		f"📝 <b>О себе:</b> {bio}"
 	)
-	# Добавляем кнопку "Назад"
-	await callback.message.edit_text(text, reply_markup=back_kb, parse_mode="HTML")
 
-# --- ОБРАБОТКА ИНЛАЙН КНОПОК ---
+	# Кнопка редактирования прямо под профилем
+	edit_kb = InlineKeyboardMarkup(inline_keyboard=[
+		[InlineKeyboardButton(text="✏️ Редактировать", callback_data="edit_profile")],
+		[InlineKeyboardButton(text="🔙 Назад", callback_data="back_home")]
+	])
+
+	await callback.message.edit_text(text, reply_markup=edit_kb, parse_mode="HTML")
+
+# --- ЛОГИКА РЕДАКТИРОВАНИЯ ---
+@router.callback_query(F.data == "edit_profile")
+async def cb_edit_profile(callback: types.CallbackQuery, state: FSMContext):
+	await callback.message.edit_text("Давай обновим данные. Как тебя зовут?", reply_markup=back_kb)
+	await state.set_state(Form.name) # Запускаем анкету заново
+
+# --- ЦИТАТА (Используем ИИ) ---
+@router.callback_query(F.data == "quote_btn")
+async def cb_quote(callback: types.CallbackQuery):
+	# Показываем, что думаем
+	await callback.message.edit_text("🧘 Ищу мудрость для тебя...", reply_markup=back_kb)
+
+	try:
+		# Просим GigaChat придумать цитату
+		prompt = "Придумай короткую, вдохновляющую, мудрую цитату или аффирмацию на сегодня. Не используй банальности."
+		ai_answer = await get_chat_response(prompt)
+
+		await callback.message.edit_text(
+			f"✨ <b>Цитата дня:</b>\n\n<i>{ai_answer}</i>",
+			reply_markup=back_kb,
+			parse_mode="HTML"
+		)
+	except Exception as e:
+		await callback.message.edit_text(f"Не удалось получить мудрость: {e}", reply_markup=back_kb)
 
 
 # --- ЛОГИКА КНОПКИ "О БОТЕ" ---

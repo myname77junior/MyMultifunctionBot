@@ -28,21 +28,29 @@ async def process_age(message: types.Message, state: FSMContext):
 		return
 	await state.update_data(age=message.text)
 
-	await message.answer("Отлично! Напиши пару слов о себе.")
+	await message.answer("В каком городе ты живешь? (Это нужно для погоды 🌤)")
+	await state.set_state(Form.city)
 
+# --- 4. ЛОВИМ ГОРОД (НОВАЯ ФУНКЦИЯ) ---
+@router.message(Form.city)
+async def process_city(message: types.Message, state: FSMContext):
+	await state.update_data(city=message.text)	
+
+	await message.answer("Отлично! Теперь напиши пару слов о себе и своих интересах.")
 	await state.set_state(Form.bio)
 
-# --- 4. ФИНАЛ ---
+# --- 5. ФИНАЛ (БИО + СОХРАНЕНИЕ) ---
 @router.message(Form.bio)
 async def process_bio(message: types.Message, state: FSMContext):
 	await state.update_data(bio=message.text)
 
 	data = await state.get_data()
 
-	database.save_profile(
+	database.add_profile(
 		user_id=message.from_user.id,
 		name=data['name'],
 		age=data['age'],
+		city=data['city'],
 		bio=data['bio']
 	)
 
@@ -50,29 +58,11 @@ async def process_bio(message: types.Message, state: FSMContext):
 		f"✅ <b>Анкета готова!</b>\n\n"
 		f"👤 <b>Имя:</b> {data['name']}\n"
 		f"🎂 <b>Возраст:</b> {data['age']}\n"
+		f"🏙 <b>Город:</b> {data['city']}\n"
 		f"📝 <b>О себе:</b> {data['bio']}"
 		)
 
 	await message.answer(text, parse_mode="HTML")
 	await state.clear()
 
-@router.message(Command("myprofile"))
-async def cmd_my_profile(message: types.Message):
-	# 1. Спрашиваем у базы: "Есть что-нибудь про этого парня?"
-	profile = database.get_profile(message.from_user.id)
 
-	# 2. Если profile пустотой (None) — значит, анкеты нет
-	if not profile:
-		await message.answer("Я тебя пока не знаю! Напиши /profile, чтобы познакомиться.")
-		return
-
-	# 3. Если анкета есть — распаковываем данные
-	name, age, bio = profile
-
-	text = (
-		f"📂 <b>Твой профиль:</b>\n\n"
-		f"👤 <b>Имя:</b>{name}\n"
-		f"🎂 <b>Возраст:</b>{age}\n"
-		f"📝 <b>О себе:</b>{bio}"
-	)
-	await message.answer(text, parse_mode="HTML")
