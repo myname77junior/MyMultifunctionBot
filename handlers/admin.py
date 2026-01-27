@@ -1,14 +1,20 @@
-from aiogram import Router, types
+from aiogram import Router, types, F
 from aiogram.filters import Command
-from aiogram.types import FSInputFile
+from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 import database
 import os
-import html  # <--- ВАЖНЫЙ ИМПОРТ ДЛЯ ЗАЩИТЫ ТЕКСТА
+import html 
+import csv # <--- ВАЖНЫЙ ИМПОРТ ДЛЯ ЗАЩИТЫ ТЕКСТА
 
 router = Router()
 
 # Твой ID
 ADMIN_ID = 260124758 
+
+kb = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="📥 Скачать базу .db", callback_data="get_db"),types.InlineKeyboardButton(text="📥 Выгрузить базу .csv", callback_data="export_data")],
+        [types.InlineKeyboardButton(text="📢 Рассылка (тест)", callback_data="broadcast")]
+    ])
 
 @router.message(Command("admin"))
 async def cmd_admin(message: types.Message):
@@ -19,16 +25,52 @@ async def cmd_admin(message: types.Message):
     count = database.get_users_count()
     
     text = (
-        f"👨‍✈️ <b>Панель Админа</b>\n\n"
+        f"👨‍✈️ <b>👑 Привет, Создатель! Чем займемся?</b>\n\n"
         f"👥 <b>Всего пользователей:</b> {count}\n"
     )
-    
-    kb = types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(text="📥 Скачать базу", callback_data="get_db")],
-        [types.InlineKeyboardButton(text="📢 Рассылка (тест)", callback_data="broadcast")]
-    ])
-    
+
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+# --- ЭКСПОРТ ДАННЫХ (НОВАЯ ФУНКЦИЯ) ---
+@router.callback_query(F.data == "export_data")
+async def cb_export(callback: types.CallbackQuery):
+    await callback.message.edit_text("⏳ Генерирую отчет...")
+
+    # 1. Получаем данные из базы
+    users = database.get_full_report()
+
+    if not users:
+        await callback.message.edit_text("📂 База пуста, выгружать нечего.")
+        return
+    
+    # 2. Имя файла
+    file_path = "users_base.csv"
+
+    # 3. Создаем и записываем файл
+    # encoding='utf-8-sig' нужен, чтобы Excel на Windows правильно показывал русские буквы
+    with open(file_path, mode='w', newline='', encoding='utf-8-sig') as file:
+        writer = csv.writer(file, delimiter=';') # Точка с запятой - стандарт для Excel в РФ
+
+        # Пишем заголовки
+        writer.writerow(['User ID', 'Имя', 'Возраст', 'Город', 'О себе'])
+
+        # Пишем данные
+        writer.writerows(users)
+
+    # 4. Отправляем файл
+    try:
+        # FSInputFile - специальный тип для отправки файлов с диска
+        await callback.message.answer_document(FSInputFile(file_path), caption="📂 Вот полная база пользователей.")
+    except Exception as e:
+        await callback.message.answer(f"Ошибка отправки: {e}")
+    finally:
+        # 5. Убираем за собой (удаляем файл с сервера)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        # Возвращаем меню
+        await callback.message.answer("<b>Админ меню</b>", reply_markup=kb, parse_mode="HTML")
+
 
 # --- КНОПКА СКАЧИВАНИЯ БАЗЫ ---
 @router.callback_query(lambda c: c.data == "get_db")

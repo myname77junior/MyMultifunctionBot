@@ -117,3 +117,14 @@ def get_all_profiles_data():
     users = cursor.fetchall()
     conn.close()
     return users
+
+# --- ФУНКЦИЯ ДЛЯ ОТЧЕТА (ЭКСПОРТ) ---
+def get_full_report():
+     """Возвращает ВСЕ данные из таблицы профилей для Excel"""
+     conn = sqlite3.connect('bot_database.db')
+     cursor = conn.cursor()
+     # Запрашиваем ID, Имя, Возраст, Город, Био
+     cursor.execute("SELECT user_id, name, age, city, bio FROM profiles")
+     users = cursor.fetchall()
+     conn.close()
+     return users
