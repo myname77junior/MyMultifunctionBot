@@ -3,6 +3,7 @@ from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from states import Form # Импортируем наши состояния
+from keyboards.client_kb import back_kb
 
 router = Router()
 
@@ -62,7 +63,7 @@ async def process_bio(message: types.Message, state: FSMContext):
 		f"📝 <b>О себе:</b> {data['bio']}"
 		)
 
-	await message.answer(text, parse_mode="HTML")
+	await message.answer(text, parse_mode="HTML", reply_markup=back_kb)
 	await state.clear()
 
 

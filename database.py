@@ -109,11 +109,11 @@ def get_profile(user_id):
 	return profile
 
 def get_all_profiles_data():
-    """Возвращает список кортежей: (user_id, city)"""
+    """Возвращает список кортежей: (user_id, city, bio)"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
-    # Берем ID и Город у тех, у кого город вообще заполнен
-    cursor.execute("SELECT user_id, city FROM profiles WHERE city IS NOT NULL")
+    # Берем ID, Городи био у тех, у кого город вообще заполнен
+    cursor.execute("SELECT user_id, city, bio FROM profiles WHERE city IS NOT NULL")
     users = cursor.fetchall()
     conn.close()
     return users
